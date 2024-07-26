@@ -36,6 +36,19 @@ import org.springframework.web.servlet.ModelAndView;
 import jakarta.validation.Valid;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import datadog.trace.api.Trace;
+import datadog.trace.api.DDTags;
+
+import io.opentracing.Scope;
+import io.opentracing.Span;
+import io.opentracing.Tracer;
+import io.opentracing.tag.Tags;
+
+import io.opentracing.util.GlobalTracer;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
 /**
  * @author Juergen Hoeller
  * @author Ken Krebs
@@ -90,30 +103,56 @@ class OwnerController {
 	@GetMapping("/owners")
 	public String processFindForm(@RequestParam(defaultValue = "1") int page, Owner owner, BindingResult result,
 			Model model) {
-		// allow parameterless GET request for /owners to return all records
-		if (owner.getLastName() == null) {
-			owner.setLastName(""); // empty string signifies broadest possible search
-		}
 
-		// find owners by last name
+		Tracer tracer = GlobalTracer.get();
+		Span span = tracer.buildSpan("GET /owners")
+			.withTag(DDTags.SERVICE_NAME, "petclinic-dd-manual")
+			.withTag(DDTags.RESOURCE_NAME, "GET /owners")
+			.start();
+		System.out.println("hello from Datadog");
+		System.out.println(span);
 		Page<Owner> ownersResults = findPaginatedForOwnersLastName(page, owner.getLastName());
-		if (ownersResults.isEmpty()) {
-			// no owners found
-			result.rejectValue("lastName", "notFound", "not found");
-			return "owners/findOwners";
-		}
+		try (Scope scope = tracer.activateSpan(span)) {
+			// allow parameterless GET request for /owners to return all records
+			if (owner.getLastName() == null) {
+				owner.setLastName(""); // empty string signifies broadest possible search
+			}
 
-		if (ownersResults.getTotalElements() == 1) {
-			// 1 owner found
-			owner = ownersResults.iterator().next();
-			return "redirect:/owners/" + owner.getId();
-		}
+			// find owners by last name
 
-		// multiple owners found
-		return addPaginationModel(page, model, ownersResults);
+			if (ownersResults.isEmpty()) {
+				// no owners found
+				result.rejectValue("lastName", "notFound", "not found");
+				span.setTag("Owners", 0);
+				return "owners/findOwners";
+			}
+
+			if (ownersResults.getTotalElements() == 1) {
+				// 1 owner found
+				owner = ownersResults.iterator().next();
+				span.setTag("Owners", 1);
+				return "redirect:/owners/" + owner.getId();
+			}
+			span.setTag("Owners", 5);
+			// multiple owners found
+		}
+		catch (Exception e) {
+			// Set error on span
+			span.setTag(Tags.ERROR, true);
+			span.setTag(DDTags.ERROR_MSG, e.getMessage());
+			span.setTag(DDTags.ERROR_TYPE, e.getClass().getName());
+
+			final StringWriter errorString = new StringWriter();
+			e.printStackTrace(new PrintWriter(errorString));
+			span.setTag(DDTags.ERROR_STACK, errorString.toString());
+		}
+		finally {
+			span.finish();
+			return addPaginationModel(page, model, ownersResults);
+		}
 	}
 
-	private String addPaginationModel(int page, Model model, Page<Owner> paginated) {
+	String addPaginationModel(int page, Model model, Page<Owner> paginated) {
 		List<Owner> listOwners = paginated.getContent();
 		model.addAttribute("currentPage", page);
 		model.addAttribute("totalPages", paginated.getTotalPages());
@@ -122,7 +161,7 @@ class OwnerController {
 		return "owners/ownersList";
 	}
 
-	private Page<Owner> findPaginatedForOwnersLastName(int page, String lastname) {
+	Page<Owner> findPaginatedForOwnersLastName(int page, String lastname) {
 		int pageSize = 5;
 		Pageable pageable = PageRequest.of(page - 1, pageSize);
 		return owners.findByLastName(lastname, pageable);

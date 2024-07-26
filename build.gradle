@@ -36,6 +36,9 @@ dependencies {
   implementation 'org.springframework.boot:spring-boot-starter-validation'
   implementation 'javax.cache:cache-api'
   implementation 'jakarta.xml.bind:jakarta.xml.bind-api'
+  implementation 'com.datadoghq:dd-trace-api:+'
+  implementation 'io.opentracing:opentracing-util:0.33.0'
+  implementation 'io.opentracing:opentracing-api:0.33.0'
   runtimeOnly 'org.springframework.boot:spring-boot-starter-actuator'
   runtimeOnly "org.webjars.npm:bootstrap:${webjarsBootstrapVersion}"
   runtimeOnly "org.webjars.npm:font-awesome:${webjarsFontawesomeVersion}"
