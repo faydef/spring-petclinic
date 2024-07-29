@@ -109,32 +109,77 @@ class OwnerController {
 			.withTag(DDTags.SERVICE_NAME, "petclinic-dd-manual")
 			.withTag(DDTags.RESOURCE_NAME, "GET /owners")
 			.start();
-		System.out.println("hello from Datadog");
-		System.out.println(span);
+
 		Page<Owner> ownersResults = findPaginatedForOwnersLastName(page, owner.getLastName());
+
 		try (Scope scope = tracer.activateSpan(span)) {
 			// allow parameterless GET request for /owners to return all records
 			if (owner.getLastName() == null) {
 				owner.setLastName(""); // empty string signifies broadest possible search
 			}
-
 			// find owners by last name
+
+			// Scope scope_num = tracer.buildSpan("Owner found").startActive(true);
+			// scope_num.span().setTag("number", ownersResults.getTotalElements());
+			Span span_num = tracer.buildSpan("Number of owners").start();
+			Scope scope_num = tracer.activateSpan(span_num);
+			span_num.setTag("Number of owners", ownersResults.getTotalElements());
+			span_num.finish();
+			scope_num.close();
 
 			if (ownersResults.isEmpty()) {
 				// no owners found
 				result.rejectValue("lastName", "notFound", "not found");
-				span.setTag("Owners", 0);
 				return "owners/findOwners";
 			}
 
 			if (ownersResults.getTotalElements() == 1) {
 				// 1 owner found
 				owner = ownersResults.iterator().next();
-				span.setTag("Owners", 1);
+				// Scope scope_owner = tracer.buildSpan("Owner found").startActive(true);
+				// scope_owner.span().setTag("ID", owner.getId());
+				// scope_owner.close();
+				Span span_owner = tracer.buildSpan("Owner").start();
+				Scope scope_owner = tracer.activateSpan(span_owner);
+				span_owner.setTag("Owner id", owner.getId());
+				span_owner.finish();
+				scope_owner.close();
 				return "redirect:/owners/" + owner.getId();
 			}
-			span.setTag("Owners", 5);
-			// multiple owners found
+			// Iterator<Owner> ownersIterator = ownersResults.iterator();
+			ownersResults.forEach(individualOwner -> {
+				// Process each Owner object
+				System.out.println(individualOwner);
+				Span span_owner = tracer.buildSpan("Owner").start();
+				Scope scope_owner = tracer.activateSpan(span_owner);
+				span_owner.setTag("Owner id", individualOwner.getId());
+				span_owner.finish();
+				scope_owner.close();
+			});
+			// while (ownersIterator.hasNext()) {
+			// owner = ownersIterator.next();
+			// // Scope scope_owner = tracer.buildSpan("Owner found").startActive(true);
+			// // scope_owner.span().setTag("ID", owner.getId());
+			// // scope_owner.close();
+			// }
+
+			// StringJoiner idsJoiner = new StringJoiner(",");
+
+			// while (ownersIterator.hasNext()) {
+			// owner = ownersIterator.next();
+			// idsJoiner.add(String.valueOf(owner.getId()));
+			// }
+			// StringJoiner idsJoiner = new StringJoiner(",");
+			// Iterator<Owner> ownersIterator = ownersResults.iterator();
+			// while (ownersIterator.hasNext()) {
+			// owner = ownersIterator.next();
+			// idsJoiner.add(String.valueOf(owner.getId()));
+			// }
+
+			// span.setTag("OwnerIDs", idsJoiner.toString());
+			span_num.finish();
+			scope_num.close();
+
 		}
 		catch (Exception e) {
 			// Set error on span
