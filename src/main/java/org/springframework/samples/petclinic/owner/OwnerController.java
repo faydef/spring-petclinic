@@ -131,9 +131,6 @@ class OwnerController {
 			span_num.setTag("Number of owners", ownersResults.getTotalElements());
 			span_num.finish();
 			scope_num.close();
-			System.out.println("ownersResults");
-			System.out.println(ownersResults.getTotalElements());
-			System.out.println(ownersResults);
 
 			if (ownersResults.isEmpty()) {
 				// no owners found
@@ -157,7 +154,6 @@ class OwnerController {
 			// Iterator<Owner> ownersIterator = ownersResults.iterator();
 			ownersResults.forEach(individualOwner -> {
 				// Process each Owner object
-				System.out.println(individualOwner);
 				Span span_owner = tracer.buildSpan("Owner").start();
 				Scope scope_owner = tracer.activateSpan(span_owner);
 				span_owner.setTag("Owner id", individualOwner.getId());
