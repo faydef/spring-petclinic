@@ -110,6 +110,12 @@ class OwnerController {
 			.withTag(DDTags.RESOURCE_NAME, "GET /owners")
 			.start();
 
+		// allow parameterless GET request for /owners to return all records
+		if (owner.getLastName() == null) {
+			owner.setLastName(""); // empty string signifies broadest possible search
+			}
+
+
 		Page<Owner> ownersResults = findPaginatedForOwnersLastName(page, owner.getLastName());
 
 		try (Scope scope = tracer.activateSpan(span)) {
