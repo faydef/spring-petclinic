@@ -113,8 +113,7 @@ class OwnerController {
 		// allow parameterless GET request for /owners to return all records
 		if (owner.getLastName() == null) {
 			owner.setLastName(""); // empty string signifies broadest possible search
-			}
-
+		}
 
 		Page<Owner> ownersResults = findPaginatedForOwnersLastName(page, owner.getLastName());
 
@@ -132,6 +131,9 @@ class OwnerController {
 			span_num.setTag("Number of owners", ownersResults.getTotalElements());
 			span_num.finish();
 			scope_num.close();
+			System.out.println("ownersResults");
+			System.out.println(ownersResults.getTotalElements());
+			System.out.println(ownersResults);
 
 			if (ownersResults.isEmpty()) {
 				// no owners found
