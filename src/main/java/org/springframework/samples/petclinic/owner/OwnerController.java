@@ -33,8 +33,21 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.TextMapGetter;
+
 import jakarta.validation.Valid;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 /**
  * @author Juergen Hoeller
@@ -42,6 +55,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  * @author Arjen Poutsma
  * @author Michael Isvy
  */
+
+// SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
+// .addSpanProcessor(spanProcessor)
+// .setResource(resource)
+// .build();
+
 @Controller
 class OwnerController {
 
@@ -90,27 +109,76 @@ class OwnerController {
 	@GetMapping("/owners")
 	public String processFindForm(@RequestParam(defaultValue = "1") int page, Owner owner, BindingResult result,
 			Model model) {
+		String SERVICE_NAME = "otel-manual-java";
+		Span span = GlobalOpenTelemetry.getTracer(SERVICE_NAME).spanBuilder("GET /owners").startSpan();
+
 		// allow parameterless GET request for /owners to return all records
 		if (owner.getLastName() == null) {
 			owner.setLastName(""); // empty string signifies broadest possible search
 		}
 
-		// find owners by last name
 		Page<Owner> ownersResults = findPaginatedForOwnersLastName(page, owner.getLastName());
-		if (ownersResults.isEmpty()) {
-			// no owners found
-			result.rejectValue("lastName", "notFound", "not found");
-			return "owners/findOwners";
-		}
 
-		if (ownersResults.getTotalElements() == 1) {
-			// 1 owner found
-			owner = ownersResults.iterator().next();
-			return "redirect:/owners/" + owner.getId();
-		}
+		try (Scope scope = span.makeCurrent();) {
+			// allow parameterless GET request for /owners to return all records
+			if (owner.getLastName() == null) {
+				owner.setLastName(""); // empty string signifies broadest possible search
+			}
+			// find owners by last name
+			Span span_num = GlobalOpenTelemetry.getTracer(SERVICE_NAME).spanBuilder("Number of owners").startSpan();
+			Scope scope_num = span_num.makeCurrent();
+			span_num.setAttribute("Number of owners", ownersResults.getTotalElements());
+			span_num.end();
+			scope_num.close();
 
-		// multiple owners found
-		return addPaginationModel(page, model, ownersResults);
+			if (ownersResults.isEmpty()) {
+				// no owners found
+				result.rejectValue("lastName", "notFound", "not found");
+				return "owners/findOwners";
+			}
+
+			if (ownersResults.getTotalElements() == 1) {
+				// 1 owner found
+				owner = ownersResults.iterator().next();
+				Span span_owner = GlobalOpenTelemetry.getTracer(SERVICE_NAME)
+					.spanBuilder("Number of owners")
+					.startSpan();
+				Scope scope_owner = span_owner.makeCurrent();
+				span_owner.setAttribute("Owner id", owner.getId());
+				span_owner.end();
+				scope_owner.close();
+				return "redirect:/owners/" + owner.getId();
+			}
+
+			ownersResults.forEach(individualOwner -> {
+				// Process each Owner object
+				Span span_owner = GlobalOpenTelemetry.getTracer(SERVICE_NAME)
+					.spanBuilder("Number of owners")
+					.startSpan();
+				Scope scope_owner = span_owner.makeCurrent();
+				span_owner.setAttribute("Owner id", individualOwner.getId());
+				span_owner.end();
+				scope_owner.close();
+			});
+
+			span_num.end();
+			scope_num.close();
+
+		}
+		catch (Exception e) {
+			// Set error on span
+			span.setAttribute("tags.error", true);
+			span.setAttribute("exception.error_msg", e.getMessage());
+			span.setAttribute("exception.error_type", e.getClass().getName());
+
+			final StringWriter errorString = new StringWriter();
+			e.printStackTrace(new PrintWriter(errorString));
+			span.setAttribute("exception.error_stack", errorString.toString());
+		}
+		finally {
+			span.end();
+			return addPaginationModel(page, model, ownersResults);
+		}
 	}
 
 	private String addPaginationModel(int page, Model model, Page<Owner> paginated) {
