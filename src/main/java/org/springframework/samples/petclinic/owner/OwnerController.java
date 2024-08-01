@@ -140,9 +140,7 @@ class OwnerController {
 			if (ownersResults.getTotalElements() == 1) {
 				// 1 owner found
 				owner = ownersResults.iterator().next();
-				Span span_owner = GlobalOpenTelemetry.getTracer(SERVICE_NAME)
-					.spanBuilder("Owner")
-					.startSpan();
+				Span span_owner = GlobalOpenTelemetry.getTracer(SERVICE_NAME).spanBuilder("Owner").startSpan();
 				Scope scope_owner = span_owner.makeCurrent();
 				span_owner.setAttribute("Owner id", owner.getId());
 				span_owner.end();
@@ -152,9 +150,7 @@ class OwnerController {
 
 			ownersResults.forEach(individualOwner -> {
 				// Process each Owner object
-				Span span_owner = GlobalOpenTelemetry.getTracer(SERVICE_NAME)
-					.spanBuilder("Owner")
-					.startSpan();
+				Span span_owner = GlobalOpenTelemetry.getTracer(SERVICE_NAME).spanBuilder("Owner").startSpan();
 				Scope scope_owner = span_owner.makeCurrent();
 				span_owner.setAttribute("Owner id", individualOwner.getId());
 				span_owner.end();
